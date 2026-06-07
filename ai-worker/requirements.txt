@@ -1,0 +1,6 @@
+redis
+langchain
+langgraph
+langchain-google-genai
+python-dotenv
+requests

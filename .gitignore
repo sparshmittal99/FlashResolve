@@ -1,0 +1,54 @@
+# =========================
+# 1. Environment & Secrets (CRITICAL)
+# =========================
+.env
+*.env
+.env.local
+secret*.txt
+
+# =========================
+# 2. Frontend: Angular v19 
+# =========================
+node_modules/
+dist/
+.angular/
+*.log
+
+# =========================
+# 3. Backend: Java Spring Boot
+# =========================
+target/
+build/
+*.class
+*.jar
+*.war
+# Keep the maven wrapper so others can build it
+!mvnw
+!mvnw.cmd
+
+# =========================
+# 4. AI Brain: Python (LangGraph)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+pip-log.txt
+
+# =========================
+# 5. Database & Docker
+# =========================
+# Ignore local PostgreSQL data volumes if you mapped them to a local folder
+pgdata/
+db_data/
+
+# =========================
+# 6. IDEs & OS Files
+# =========================
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

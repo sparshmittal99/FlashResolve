@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flash_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: flash_resolve_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: flash_redis
+    ports:
+      - "6379:6379"
+
+  ai-worker:
+    build: ./ai-worker
+    container_name: flash-ai-worker
+    environment:
+      - REDIS_HOST=redis
+      - JAVA_API_URL=http://host.docker.internal:8081
+    env_file:
+      - ./ai-worker/.env
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
