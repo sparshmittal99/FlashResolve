@@ -3,6 +3,8 @@ import redis
 import time
 import os
 import requests
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from typing import TypedDict
 from langgraph.graph import StateGraph, END
@@ -16,10 +18,10 @@ if not os.getenv("GEMINI_API_KEY"):
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
-# Upstash requires SSL to be enabled, but local Docker development does not
 REDIS_SSL_ENABLED = os.getenv("REDIS_SSL_ENABLED", "false").lower() == "true"
 
 JAVA_API_URL = os.getenv("JAVA_API_URL", "http://localhost:8081")
+PORT = int(os.getenv("PORT", 10000))  # Render automatically injects PORT env variable
 # -----------------------------------------------------------
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
@@ -33,7 +35,6 @@ class GraphState(TypedDict):
 def analyze_transaction(state: GraphState):
     txn = state["transaction"]
     
-    # 🚀 Extracted real-world contextual metrics to feed into the prompt
     prompt = f"""
     You are an enterprise AI Fraud Risk Engine for 'FlashResolveAI'.
     Analyze this incoming transaction payload against a multi-factor risk matrix:
@@ -44,98 +45,76 @@ def analyze_transaction(state: GraphState):
     - Transaction Location: {txn.get('location', 'Unknown')}
     
     RISK EVALUATION MATRIX:
-    
-    1. GEOSPATIAL MISMATCH:
-       - Low Risk: Local or domestic transactions matching a standard baseline.
-       - High Risk: Sudden international hops or cross-border locations (e.g., a user account shifting suddenly to Dublin, Ireland, or offshore regions) without a prior baseline. Significant weight should be added (+30 to risk score).
-       
-    2. VALUE ANOMALY (Average Order Value Deviation):
-       - Low Risk: Retail amounts under $100.
-       - Medium Risk: Everyday amounts between $100 and $500.
-       - High Risk: Large transactions over $500 (+40 to risk score). Combined with international or high-risk merchants, this is an automatic trigger for high fraud flags.
-       
-    3. MERCHANT RISK TIERING:
-       - Low Risk: Groceries, utilities, insurance, standard subscriptions.
-       - Medium/High Risk: Massive online marketplaces (Amazon, eBay) for high-resale electronics, or high-risk keywords like 'CRYPTO', 'CASINO', 'UNKNOWN', or digital asset transfers (+20 to risk score).
+    1. GEOSPATIAL MISMATCH: Sudden international hops (+30 to risk score).
+    2. VALUE ANOMALY: Large transactions over $500 (+40 to risk score).
+    3. MERCHANT RISK TIERING: Marketplaces or high-risk keywords (+20 to risk score).
 
-    DECISION & OUTPUT SCORING SCALES:
-    - Compute a total weighted score strictly between 0 and 100.
-    
-    Respond STRICTLY in a clean JSON object format. Do not add markdown wrappers. Use exactly these two keys:
+    Respond STRICTLY in a clean JSON object format. Use exactly these two keys:
     {{
       "risk_score": [Integer from 0 to 100],
-      "explanation": "[A concise 1-2 sentence breakdown citing the explicit geospatial, merchant, or value risks driven by the payload]"
+      "explanation": "[A concise 1-2 sentence breakdown]"
     }}
     """
     
     response = llm.invoke(prompt)
-    
     try:
-        # Clean markdown wrappers if returned by the model
         clean_text = response.content.replace("```json", "").replace("```", "").strip()
         result = json.loads(clean_text)
         return {"risk_score": int(result["risk_score"]), "explanation": result["explanation"]}
     except Exception:
-        # Fallback processing safety
         return {"risk_score": 85, "explanation": "AI optimization error. Flagged for review due to payload format issues."}
 
 def decide_action(state: GraphState):
     score = state["risk_score"]
-    
-    # Real-world risk tier mapping
-    if score > 75:
-        action = "BLOCKED"
-    elif score > 35:
-        action = "FLAGGED"
-    else:
-        action = "APPROVED"
-        
+    if score > 75: action = "BLOCKED"
+    elif score > 35: action = "FLAGGED"
+    else: action = "APPROVED"
     return {"action": action}
 
 workflow = StateGraph(GraphState)
 workflow.add_node("analyze", analyze_transaction)
 workflow.add_node("decide", decide_action)
-
 workflow.set_entry_point("analyze")
 workflow.add_edge("analyze", "decide")
 workflow.add_edge("decide", END)
-
 ai_app = workflow.compile()
 
-# Updated Client Configuration to support Cloud credentials dynamically
+# --- LIGHTWEIGHT HTTP HEALTH CHECK SERVER FOR RENDER ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"AI Brain is healthy and processing queues!")
+        
+    def log_message(self, format, *args):
+        return # Suppress health check ping noise in logs
+
+def start_health_server():
+    server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
+    print(f"🟢 Health Check Server listening on port {PORT}...")
+    server.serve_forever()
+# --------------------------------------------------------
+
 redis_client = redis.Redis(
-    host=REDIS_HOST, 
-    port=REDIS_PORT, 
-    password=REDIS_PASSWORD,
-    ssl=REDIS_SSL_ENABLED,
-    db=0, 
-    decode_responses=True, 
-    health_check_interval=30
+    host=REDIS_HOST, port=REDIS_PORT, password=REDIS_PASSWORD,
+    ssl=REDIS_SSL_ENABLED, db=0, decode_responses=True, health_check_interval=30
 )
 
 def process_queue():
-    print(f"🤖 FlashResolve AI Brain is online! Connected to Redis at {REDIS_HOST}:{REDIS_PORT} (SSL={REDIS_SSL_ENABLED})...")
+    print(f"🤖 FlashResolve AI Brain is online! Connected to Redis at {REDIS_HOST}:{REDIS_PORT}...")
     
     while True:
         try:
-            # Safely waiting for tasks on your custom anomaly_queue
             message = redis_client.brpop("anomaly_queue", timeout=5)
-            
             if message:
                 _, transaction_json = message
                 transaction = json.loads(transaction_json)
                 txn_id = transaction.get('id')
                 
                 print(f"\n📥 New Transaction Received: ID {txn_id}")
-                print(f"   Merchant: {transaction.get('merchantId')} | Amount: ${transaction.get('amount')} | Location: {transaction.get('location', 'Unknown')}")
-                print("   🧠 AI is evaluating against multi-factor risk models...")
-                
                 initial_state = {"transaction": transaction}
                 final_state = ai_app.invoke(initial_state)
-                
-                print(f"   📊 Risk Score: {final_state['risk_score']}/100")
-                print(f"   📝 Reason: {final_state['explanation']}")
-                print(f"   🎯 Decision: {final_state['action']}")
                 
                 try:
                     update_payload = {
@@ -148,13 +127,15 @@ def process_queue():
                     print("   💾 Successfully saved AI decision to PostgreSQL via Java!")
                 except Exception as db_err:
                     print(f"   ⚠️ Could not save to database: {db_err}")
-                
-                print("-" * 50)
-
         except Exception as e:
             if "Timeout" not in str(e):
                 print(f"❌ Redis Connection Error: {e}")
             time.sleep(2)
 
 if __name__ == "__main__":
+    # Start the web health check server in a side thread so Render stays happy
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+    
+    # Run your Redis listener on the main thread
     process_queue()
