@@ -12,10 +12,15 @@ load_dotenv()
 if not os.getenv("GEMINI_API_KEY"):
     raise ValueError("Missing GEMINI_API_KEY in .env file!")
 
-# --- DYNAMIC NETWORKING FOR DOCKER ---
+# --- DYNAMIC NETWORKING FOR LOCAL DOCKER & CLOUD HOSTING ---
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+# Upstash requires SSL to be enabled, but local Docker development does not
+REDIS_SSL_ENABLED = os.getenv("REDIS_SSL_ENABLED", "false").lower() == "true"
+
 JAVA_API_URL = os.getenv("JAVA_API_URL", "http://localhost:8081")
-# -------------------------------------
+# -----------------------------------------------------------
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
 
@@ -97,14 +102,23 @@ workflow.add_edge("decide", END)
 
 ai_app = workflow.compile()
 
-# Using the dynamic REDIS_HOST
-redis_client = redis.Redis(host=REDIS_HOST, port=6379, db=0, decode_responses=True, health_check_interval=30)
+# Updated Client Configuration to support Cloud credentials dynamically
+redis_client = redis.Redis(
+    host=REDIS_HOST, 
+    port=REDIS_PORT, 
+    password=REDIS_PASSWORD,
+    ssl=REDIS_SSL_ENABLED,
+    db=0, 
+    decode_responses=True, 
+    health_check_interval=30
+)
 
 def process_queue():
-    print(f"🤖 FlashResolve AI Brain is online! Connected to Redis at {REDIS_HOST}...")
+    print(f"🤖 FlashResolve AI Brain is online! Connected to Redis at {REDIS_HOST}:{REDIS_PORT} (SSL={REDIS_SSL_ENABLED})...")
     
     while True:
         try:
+            # Safely waiting for tasks on your custom anomaly_queue
             message = redis_client.brpop("anomaly_queue", timeout=5)
             
             if message:

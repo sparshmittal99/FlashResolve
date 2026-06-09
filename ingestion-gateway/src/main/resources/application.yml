@@ -2,14 +2,14 @@ spring:
   application:
     name: ingestion-gateway
 
-  # Connect to your Docker PostgreSQL database
+  # Cloud Data Layer Setup (Neon PostgreSQL)
   datasource:
-    url: jdbc:postgresql://localhost:5432/flash_resolve_db
-    username: admin
-    password: secretpassword
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:flash_resolve_db}}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:secretpassword}
     driver-class-name: org.postgresql.Driver
 
-  # Tell Hibernate to automatically create tables matching our Java objects
+  # Hibernate Engine Optimization
   jpa:
     hibernate:
       ddl-auto: update
@@ -17,14 +17,18 @@ spring:
     properties:
       "[hibernate.format_sql]": true
 
-  # Connect to your Docker Redis instance
+  # Serverless Event Stream Setup (Upstash Redis)
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
 
+# Render injects a dynamic port parameter. This adapts automatically.
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 management:
   endpoints:
