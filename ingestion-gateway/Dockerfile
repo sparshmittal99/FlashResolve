@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build the Spring Boot Application
 # ==========================================
-FROM maven:3.9.6-eclipse-temurin-17 AS builder
+FROM maven:3.9-eclipse-temurin-25 AS builder
 WORKDIR /app
 
 # Copy the pom.xml and source code
@@ -14,7 +14,7 @@ RUN mvn clean package -DskipTests
 # ==========================================
 # Stage 2: Run the Application
 # ==========================================
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 # Copy the compiled .jar file from the builder stage
