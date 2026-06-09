@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/transactions")
-@CrossOrigin(origins = "http://localhost:4200") // Whitelists the Angular frontend
+@CrossOrigin(origins = "https://flash-resolve-dashboard.onrender.com") // Whitelists the Angular frontend
 public class TransactionController {
 
     @Autowired
