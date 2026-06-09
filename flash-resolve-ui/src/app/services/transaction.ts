@@ -18,12 +18,16 @@ export interface Transaction {
   providedIn: 'root'
 })
 export class TransactionService {
-  // 🟢 CHANGED: Points directly to your live cloud Java API instead of localhost
   private apiUrl = 'https://flashresolve.onrender.com/api/transactions';
 
   constructor(private http: HttpClient) { }
 
   getAllTransactions(): Observable<Transaction[]> {
     return this.http.get<Transaction[]>(this.apiUrl);
+  }
+
+  // 🟢 NEW: Method to send a new transaction to Java
+  createTransaction(transactionData: any): Observable<Transaction> {
+    return this.http.post<Transaction>(this.apiUrl, transactionData);
   }
 }

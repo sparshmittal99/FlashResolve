@@ -2,6 +2,36 @@
   <h1 style="color: #111827; margin-bottom: 0.5rem;">FlashResolveAI Live Dashboard</h1>
   <p style="color: #4b5563; margin-top: 0; margin-bottom: 2rem;">Monitoring real-time transactions from PostgreSQL via Spring Boot.</p>
 
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+    <h3 style="margin-top: 0; color: #1e293b; font-size: 1.1rem; margin-bottom: 16px;">🚀 Generate Test Transaction</h3>
+    
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <input 
+        type="text" 
+        [(ngModel)]="newTxn.merchantId" 
+        placeholder="Merchant ID (e.g., Apple Store)" 
+        style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; flex: 1; min-width: 200px; font-family: inherit;">
+        
+      <input 
+        type="number" 
+        [(ngModel)]="newTxn.amount" 
+        placeholder="Amount ($)" 
+        style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; flex: 1; min-width: 120px; font-family: inherit;">
+        
+      <input 
+        type="text" 
+        [(ngModel)]="newTxn.location" 
+        placeholder="Location (e.g., Tokyo, Japan)" 
+        style="padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; flex: 1; min-width: 200px; font-family: inherit;">
+        
+      <button 
+        (click)="submitTransaction()" 
+        style="padding: 10px 24px; background: #2563eb; color: white; font-weight: 600; border: none; border-radius: 6px; cursor: pointer;">
+        Send to AI Gateway
+      </button>
+    </div>
+  </div>
+
   <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e5e7eb;">
     <table style="width: 100%; text-align: left; border-collapse: collapse;">
       <thead>

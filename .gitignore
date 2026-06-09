@@ -51,4 +51,4 @@ db_data/
 .vscode/
 *.swp
 .DS_Store
-Thumbs.db
+Thumbs.dbgit add .
