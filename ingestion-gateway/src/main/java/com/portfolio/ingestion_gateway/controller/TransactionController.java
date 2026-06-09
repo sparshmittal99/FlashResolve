@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/transactions")
-@CrossOrigin(origins = "https://flash-resolve-dashboard.onrender.com") // Whitelists the Angular frontend
+@CrossOrigin(origins = "https://flash-resolve-dashboard.onrender.com") // 🟢 Whitelists your live Angular frontend
 public class TransactionController {
 
     @Autowired
@@ -22,9 +22,9 @@ public class TransactionController {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    // 1. Receives data from PowerShell, sets to PROCESSING, and pushes to Redis
-    @PostMapping("/ingest")
-    public ResponseEntity<String> ingestTransaction(@RequestBody Transaction transaction) {
+    // 1. Receives data from Angular Dashboard, sets to PROCESSING, and pushes to Redis
+    @PostMapping
+    public ResponseEntity<Transaction> ingestTransaction(@RequestBody Transaction transaction) {
         if (transaction.getId() == null || transaction.getId().isEmpty()) {
             transaction.setId(UUID.randomUUID().toString());
         }
@@ -34,12 +34,15 @@ public class TransactionController {
         transaction.setRiskScore(0);
         transaction.setAiExplanation("Awaiting AI evaluation...");
 
+        // Save initial state to PostgreSQL
         transactionRepository.save(transaction);
         System.out.println("💾 Saved to DB [PROCESSING]: $" + transaction.getAmount() + " from " + transaction.getMerchantId());
 
+        // Push to Upstash Redis for the Python Worker
         redisPublisherService.publishToQueue(transaction);
 
-        return ResponseEntity.ok("Transaction accepted for processing with ID: " + transaction.getId());
+        // Return the exact JSON object back to Angular
+        return ResponseEntity.ok(transaction);
     }
 
     // 2. The Webhook for the Python AI Worker to submit its final decision
