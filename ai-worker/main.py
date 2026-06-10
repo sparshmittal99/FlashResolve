@@ -35,24 +35,27 @@ class GraphState(TypedDict):
 def analyze_transaction(state: GraphState):
     txn = state["transaction"]
     
+    # Recalibrated prompt to anchor the baseline and protect micro-transactions
     prompt = f"""
     You are an enterprise AI Fraud Risk Engine for 'FlashResolveAI'.
-    Analyze this incoming transaction payload against a multi-factor risk matrix:
+    Analyze this incoming transaction payload against a multi-factor risk matrix.
     
     TRANSACTION PAYLOAD:
     - Merchant ID: {txn.get('merchantId')}
     - Transaction Amount: ${txn.get('amount')}
     - Transaction Location: {txn.get('location', 'Unknown')}
     
-    RISK EVALUATION MATRIX:
-    1. GEOSPATIAL MISMATCH: Sudden international hops (+30 to risk score).
-    2. VALUE ANOMALY: Large transactions over $500 (+40 to risk score).
-    3. MERCHANT RISK TIERING: Marketplaces or high-risk keywords (+20 to risk score).
+    SCORING ENGINE RULES:
+    1. BASELINE: Start with an initial risk_score of 0.
+    2. SAFE HARBOR RULE: If the transaction amount is under $20 and is an everyday retail/coffee/food merchant (like Starbucks), the final risk_score MUST NOT exceed 15, regardless of location shifts.
+    3. GEOSPATIAL MISMATCH: Only add +30 if there is explicit evidence of an impossible international hop from a known baseline. If no baseline context is provided, treat the location as neutral (+0).
+    4. VALUE ANOMALY: Large transactions over $500 (+40 to risk score).
+    5. MERCHANT RISK TIERING: Marketplaces or high-risk keywords (+20 to risk score).
 
     Respond STRICTLY in a clean JSON object format. Use exactly these two keys:
     {{
       "risk_score": [Integer from 0 to 100],
-      "explanation": "[A concise 1-2 sentence breakdown]"
+      "explanation": "[A concise 1-2 sentence breakdown detailing your mathematical deduction]"
     }}
     """
     
