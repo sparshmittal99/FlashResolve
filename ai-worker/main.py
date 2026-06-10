@@ -7,6 +7,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from dotenv import load_dotenv
 from typing import TypedDict
+from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -24,7 +25,16 @@ JAVA_API_URL = os.getenv("JAVA_API_URL", "http://localhost:8081")
 PORT = int(os.getenv("PORT", 10000))  # Render automatically injects PORT env variable
 # -----------------------------------------------------------
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.1)
+# Initialize the core model
+base_llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.1)
+
+# Define a strict output schema using Pydantic for LangChain structured outputs
+class FraudAnalysisResponse(BaseModel):
+    risk_score: int = Field(..., description="Integer from 0 to 100 representing calculated fraud risk.")
+    explanation: str = Field(..., description="A concise 1-2 sentence breakdown detailing the mathematical deduction.")
+
+# Create the structured version of our LLM
+structured_llm = base_llm.with_structured_output(FraudAnalysisResponse)
 
 class GraphState(TypedDict):
     transaction: dict
@@ -35,7 +45,6 @@ class GraphState(TypedDict):
 def analyze_transaction(state: GraphState):
     txn = state["transaction"]
     
-    # Recalibrated prompt to anchor the baseline and protect micro-transactions
     prompt = f"""
     You are an enterprise AI Fraud Risk Engine for 'FlashResolveAI'.
     Analyze this incoming transaction payload against a multi-factor risk matrix.
@@ -51,21 +60,22 @@ def analyze_transaction(state: GraphState):
     3. GEOSPATIAL MISMATCH: Only add +30 if there is explicit evidence of an impossible international hop from a known baseline. If no baseline context is provided, treat the location as neutral (+0).
     4. VALUE ANOMALY: Large transactions over $500 (+40 to risk score).
     5. MERCHANT RISK TIERING: Marketplaces or high-risk keywords (+20 to risk score).
-
-    Respond STRICTLY in a clean JSON object format. Use exactly these two keys:
-    {{
-      "risk_score": [Integer from 0 to 100],
-      "explanation": "[A concise 1-2 sentence breakdown detailing your mathematical deduction]"
-    }}
     """
     
-    response = llm.invoke(prompt)
     try:
-        clean_text = response.content.replace("```json", "").replace("```", "").strip()
-        result = json.loads(clean_text)
-        return {"risk_score": int(result["risk_score"]), "explanation": result["explanation"]}
-    except Exception:
-        return {"risk_score": 85, "explanation": "AI optimization error. Flagged for review due to payload format issues."}
+        # structured_llm automatically forces JSON output mode and handles validation/parsing natively
+        result = structured_llm.invoke(prompt)
+        return {
+            "risk_score": int(result.risk_score), 
+            "explanation": result.explanation
+        }
+    except Exception as e:
+        print(f"❌ Structural Parsing Error Encountered: {e}")
+        # Return a safe fallback status of 0 so format issues do not erroneously block user testing
+        return {
+            "risk_score": 0, 
+            "explanation": f"Pipeline parsing fallback triggered. System log message: {str(e)}"
+        }
 
 def decide_action(state: GraphState):
     score = state["risk_score"]
