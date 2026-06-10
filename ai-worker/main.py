@@ -25,15 +25,15 @@ JAVA_API_URL = os.getenv("JAVA_API_URL", "http://localhost:8081")
 PORT = int(os.getenv("PORT", 10000))  # Render automatically injects PORT env variable
 # -----------------------------------------------------------
 
-# Initialize the core model
+# Initialize the 3.5 Flash model
 base_llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.1)
 
-# Define a strict output schema using Pydantic for LangChain structured outputs
+# Define the strict output structure to prevent any formatting errors
 class FraudAnalysisResponse(BaseModel):
     risk_score: int = Field(..., description="Integer from 0 to 100 representing calculated fraud risk.")
-    explanation: str = Field(..., description="A concise 1-2 sentence breakdown detailing the mathematical deduction.")
+    explanation: str = Field(..., description="A concise 1-2 sentence breakdown detailing the deduction.")
 
-# Create the structured version of our LLM
+# Bind the schema to the model
 structured_llm = base_llm.with_structured_output(FraudAnalysisResponse)
 
 class GraphState(TypedDict):
@@ -45,36 +45,37 @@ class GraphState(TypedDict):
 def analyze_transaction(state: GraphState):
     txn = state["transaction"]
     
+    # Restored exactly to your original 2.5 model risk matrix lines
     prompt = f"""
     You are an enterprise AI Fraud Risk Engine for 'FlashResolveAI'.
-    Analyze this incoming transaction payload against a multi-factor risk matrix.
+    Analyze this incoming transaction payload against a multi-factor risk matrix:
     
     TRANSACTION PAYLOAD:
     - Merchant ID: {txn.get('merchantId')}
     - Transaction Amount: ${txn.get('amount')}
     - Transaction Location: {txn.get('location', 'Unknown')}
     
-    SCORING ENGINE RULES:
-    1. BASELINE: Start with an initial risk_score of 0.
-    2. SAFE HARBOR RULE: If the transaction amount is under $20 and is an everyday retail/coffee/food merchant (like Starbucks), the final risk_score MUST NOT exceed 15, regardless of location shifts.
-    3. GEOSPATIAL MISMATCH: Only add +30 if there is explicit evidence of an impossible international hop from a known baseline. If no baseline context is provided, treat the location as neutral (+0).
-    4. VALUE ANOMALY: Large transactions over $500 (+40 to risk score).
-    5. MERCHANT RISK TIERING: Marketplaces or high-risk keywords (+20 to risk score).
+    RISK EVALUATION MATRIX:
+    1. GEOSPATIAL MISMATCH: Sudden international hops (+30 to risk score).
+    2. VALUE ANOMALY: Large transactions over $500 (+40 to risk score).
+    3. MERCHANT RISK TIERING: Marketplaces or high-risk keywords (+20 to risk score).
+
+    Calculate the risk score by summing the applicable penalties starting from a baseline of 0.
     """
     
     try:
-        # structured_llm automatically forces JSON output mode and handles validation/parsing natively
+        # Invoking the structured model guarantees a clean data object back
         result = structured_llm.invoke(prompt)
         return {
             "risk_score": int(result.risk_score), 
             "explanation": result.explanation
         }
     except Exception as e:
-        print(f"❌ Structural Parsing Error Encountered: {e}")
-        # Return a safe fallback status of 0 so format issues do not erroneously block user testing
+        print(f"❌ Parsing Error: {e}")
+        # Default to 0 on a structural failure so it doesn't freeze your app pipeline
         return {
             "risk_score": 0, 
-            "explanation": f"Pipeline parsing fallback triggered. System log message: {str(e)}"
+            "explanation": f"Fallback triggered due to unexpected parsing variance: {str(e)}"
         }
 
 def decide_action(state: GraphState):
