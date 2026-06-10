@@ -24,7 +24,7 @@ JAVA_API_URL = os.getenv("JAVA_API_URL", "http://localhost:8081")
 PORT = int(os.getenv("PORT", 10000))  # Render automatically injects PORT env variable
 # -----------------------------------------------------------
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.1)
+llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash", temperature=0.1)
 
 class GraphState(TypedDict):
     transaction: dict
